@@ -1,47 +1,50 @@
-#' Check Error Details
+#' Check Error Details in Japanese via RStudio API
 #'
-#' This function provides a way to check error details in R. It takes an error message from the R console,
-#' executes the function, and shows how to fix the error in the specified language.
+#' This function provides a way to check error details in R. It reads the error message from the clipboard,
+#' executes the function, and shows how to fix the error in Japanese.
 #'
-#' @title Check Error Details
+#' @title Check Error Details in Japanese
 #' @description A function to analyze and provide guidance on how to fix an error message copied from the R console.
 #' @param Summary_nch An integer specifying the maximum number of characters for the summary.
 #' @param Model A string specifying the model to be used, default is "gpt-4-0314".
 #'    Currently, "gpt-4", "gpt-4-0314" and "gpt-4-0613" can be selected as gpt-4 models.
 #'    Execution with GPT-4 is recommended.
-#' @param language A string specifying the output language, default is "English".
 #' @param verbose A logical value to control the verbosity of the output, default is TRUE.
 #' @param SlowTone A logical value to control the printing speed of the output, default is FALSE.
+#' @importFrom assertthat assert_that is.string noNA is.count
 #' @importFrom clipr read_clip
 #' @importFrom stats runif
-#' @return The function prints the guidance on how to fix the error message.
-#' @export checkErrorDet
+#' @return The function prints the guidance on how to fix the error message in Japanese. If verbose is FALSE, it returns the guidance as a string.
+#' @export checkErrorDet_JP
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
-#'   # Copy the error message that you want to fix.
-#'   checkErrorDet()
-#'   checkErrorDet(language = "Japanese")
+#'   # Analyzing error message from the clipboard
+#'   checkErrorDet_JP(Summary_nch = 100, Model = "gpt-4-0613", verbose = TRUE, SlowTone = FALSE)
 #' }
 
-checkErrorDet <- function(Summary_nch = 100,
-                          Model = "gpt-4-0613",
-                          language = "English",
-                          verbose = TRUE,
-                          SlowTone = FALSE) {
+checkErrorDet_JP <- function(Summary_nch = 100,
+                             Model = "gpt-4-0613",
+                             verbose = TRUE,
+                             SlowTone = FALSE) {
 
   input = paste0(clipr::read_clip(), collapse = " ")
+
+  if(verbose){
+  cat("\n", "checkErrorDet_JP: ", "\n")
+  pb <- utils::txtProgressBar(min = 0, max = 3, style = 3)}
 
   # Assertions
   assertthat::assert_that(
   assertthat::is.string(input),
   assertthat::noNA(input),
   assertthat::is.count(Summary_nch),
-  assertthat::is.string(language),
   Sys.getenv("OPENAI_API_KEY") != ""
   )
 
   temperature = 1
+
+  if(verbose){utils::setTxtProgressBar(pb, 1)}
 
   # Template creation
   template = "
@@ -49,24 +52,31 @@ checkErrorDet <- function(Summary_nch = 100,
   supporter, always be a very good software engineer of R programming, always respond
   to deliverables and related explanations in a very professional and accurate manner,
   always try to give the best answer to the questioner, and always be comprehensive and
-  detailed in your responses.
+  detailed in your responses. You should always use Japanese for the explanation.
   "
 
   template1 = "
-  Please describe how to fix the following error message in %s within %s words.
+  Please describe in %s words or less how to fix the following error message in %s.:
   "
 
   # Substituting arguments into the prompt
-  template1s <- paste0(sprintf(template1, language, Summary_nch), input, sep=" ")
+  template1s <- paste0(sprintf(template1, Summary_nch, "Japanese"), paste0(input, collapse = " "), sep=" ")
 
   # Prompt creation
   history <- list(list('role' = 'system', 'content' = template),
                   list('role' = 'user', 'content' = template1s))
 
+  if(verbose){utils::setTxtProgressBar(pb, 2)}
+
   # Execution
   res <- chat4R_history(history=history,
                         Model = Model,
                         temperature = temperature)
+
+  if(verbose){
+    utils::setTxtProgressBar(pb, 3)
+    cat("\n\n")
+    }
 
   if(verbose) {
     if(SlowTone) {
@@ -76,6 +86,8 @@ checkErrorDet <- function(Summary_nch = 100,
       d <- ifelse(10/nchar(res) < 0.15, 10/nchar(res), 0.15)*stats::runif(1, min = 0.95, max = 1.05)
       slow_print_v2(res, delay = d)
     }
+  } else {
+    return(res)
   }
 }
 
