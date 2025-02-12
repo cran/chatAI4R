@@ -5,14 +5,14 @@
 \title{supportIdeaGeneration: Support Idea Generation from Selected Text or Clipboard.}
 \usage{
 supportIdeaGeneration(
-  Model = "gpt-4-0613",
+  Model = "gpt-4o-mini",
   SelectedCode = TRUE,
   verbose = TRUE,
   SlowTone = FALSE
 )
 }
 \arguments{
-\item{Model}{The OpenAI GPT model to use for text generation. Default is "gpt-4-0613".}
+\item{Model}{The OpenAI GPT model to use for text generation. Default is "gpt-4o-mini".}
 
 \item{SelectedCode}{Logical flag to indicate whether to use the selected text in RStudio editor. Default is TRUE.}
 
@@ -35,6 +35,10 @@ The function reads the input from the clipboard.
 }
 \examples{
 \dontrun{
+# Option 1
+# Select some text in RStudio and then run the rstudio addins
+# Option 2
+# Copy the text into your clipboard then execute
 supportIdeaGeneration()
 }
 }

@@ -6,7 +6,7 @@
 #'
 #' @title designPackage
 #' @description Assist in proposing the overall design and architecture of an R package.
-#' @param Model The OpenAI GPT model to use for text generation. Default is "gpt-4-0613".
+#' @param Model The OpenAI GPT model to use for text generation. Default is "gpt-4o-mini".
 #' @param verbose Logical flag to indicate whether to display the generated text. Default is TRUE.
 #' @param SlowTone Logical flag to indicate whether to print the text slowly. Default is FALSE.
 #' @importFrom clipr read_clip
@@ -17,10 +17,11 @@
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
-#' designPackage(Model = "gpt-4-0613", verbose = TRUE, SlowTone = FALSE)
+#' # Copy the text into your clipboard then execute
+#' designPackage(Model = "gpt-4o-mini", verbose = TRUE, SlowTone = FALSE)
 #' }
 
-designPackage <- function(Model = "gpt-4-0613",
+designPackage <- function(Model = "gpt-4o-mini",
                           verbose = TRUE,
                           SlowTone = FALSE) {
 
@@ -58,9 +59,9 @@ designPackage <- function(Model = "gpt-4-0613",
                   list('role' = 'user', 'content' = template1s))
 
   # Execute the chat model
-  res <- chat4R_history(history=history,
+  res <- as.character(chat4R_history(history=history,
                         Model = Model,
-                        temperature = temperature)
+                        temperature = temperature))
 
   # Print the result based on verbosity and tone speed
   if(verbose) {

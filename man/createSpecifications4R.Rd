@@ -5,14 +5,14 @@
 \title{Create Specifications for R Function}
 \usage{
 createSpecifications4R(
-  Model = "gpt-4-0613",
+  Model = "gpt-4o-mini",
   SelectedCode = TRUE,
   verbose = TRUE,
   SlowTone = FALSE
 )
 }
 \arguments{
-\item{Model}{A character string specifying the GPT model to be used. Default is "gpt-4-0613".}
+\item{Model}{A character string specifying the GPT model to be used. Default is "gpt-4o-mini".}
 
 \item{SelectedCode}{A logical flag to indicate whether to read from RStudio's selected text. Default is TRUE.}
 
@@ -32,6 +32,10 @@ Create Specifications for R Function
 }
 \examples{
 \dontrun{
+# Option 1
+# Select some text in RStudio and then run the rstudio addins
+# Option 2
+# Copy the text into your clipboard then execute
 createSpecifications4R(input = "Your R function specification")
 }
 }

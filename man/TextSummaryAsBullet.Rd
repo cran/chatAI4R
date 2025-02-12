@@ -5,14 +5,14 @@
 \title{Summarize Text into Bullet Points}
 \usage{
 TextSummaryAsBullet(
-  Model = "gpt-4-0613",
+  Model = "gpt-4o-mini",
   temperature = 1,
   verbose = TRUE,
   SelectedCode = TRUE
 )
 }
 \arguments{
-\item{Model}{A string specifying the machine learning model to use for text summarization. Default is "gpt-4-0613".}
+\item{Model}{A string specifying the machine learning model to use for text summarization. Default is "gpt-4o-mini".}
 
 \item{temperature}{A numeric value between 0 and 1 indicating the randomness of the text generation. Default is 1.}
 
@@ -33,7 +33,11 @@ Summarize Selected Text into Bullet Points
 }
 \examples{
 \dontrun{
-TextSummaryAsBullet(text = "This is a sample text.")
+# Option 1
+# Select some text in RStudio and then run the rstudio addins
+# Option 2
+# Copy the text into your clipboard then execute
+TextSummaryAsBullet()
 }
 }
 \author{

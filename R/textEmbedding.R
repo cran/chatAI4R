@@ -30,7 +30,7 @@ textEmbedding <- function(text,
   # Request body (set text data)
   body <- list(
     "input" = text,
-    "model" = "text-embedding-ada-002"
+    "model" = "text-embedding-ada-002" # text-embedding-3-large or text-embedding-3-small
   )
 
   # Send POST request to the server
@@ -40,9 +40,11 @@ textEmbedding <- function(text,
 
   # Parse response
   content <- httr::content(response, "parsed")
+  #str(content$data[[1]])
 
   #convert to vector
   v <- unlist(content$data[[1]]$embedding)
+  #str(v)
 
   # Return vector
   return(v)

@@ -76,13 +76,13 @@ if(Ans3){
 }
 
 #LLMモデルを選択する
-choices1 <- c("GPT-3.5", "GPT-4 (0613)", "Another LLM")
+choices1 <- c("GPT-3.5", "gpt-4o-mini", "Another LLM")
 selection1 <- utils::menu(choices1, title = "Which language model do you prefer?")
 
 if (selection1 == 1) {
     Model = "gpt-3.5-turbo"
 } else if (selection1 == 2) {
-    Model = "gpt-4-0613"
+    Model = "gpt-4o-mini"
 } else if (selection1 == 3) {
     return(message("No valid selection made."))
 } else {
@@ -119,9 +119,9 @@ history <- list(list('role' = 'system', 'content' = template0s),
                 list('role' = 'user', 'content' = template1s))
 
 # Execute the chat model
-res <- chat4R_history(history=history,
+res <- as.character(chat4R_history(history=history,
                       Model = Model,
-                      temperature = 1)
+                      temperature = 1))
 
 # Output final result or relevant messages
 if(verbose) {

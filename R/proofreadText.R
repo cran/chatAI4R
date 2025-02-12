@@ -6,7 +6,7 @@
 #'
 #' @title proofreadText
 #' @description Proofreads text during the development of an R package.
-#' @param Model The Large Language Model to be used for proofreading. Default is "gpt-4-0613".
+#' @param Model The Large Language Model to be used for proofreading. Default is "gpt-4o-mini".
 #' @param SelectedCode Logical flag to indicate whether to use the selected text in RStudio editor. Default is TRUE.
 #' @param verbose Logical flag to print the progress. Default is TRUE.
 #' @importFrom rstudioapi isAvailable getActiveDocumentContext insertText
@@ -22,7 +22,7 @@
 #' proofreadText(SelectedCode = FALSE)
 #' }
 
-proofreadText <- function(Model = "gpt-4-0613",
+proofreadText <- function(Model = "gpt-4o-mini",
                           SelectedCode = TRUE,
                           verbose = TRUE) {
 
@@ -71,9 +71,9 @@ proofreadText <- function(Model = "gpt-4-0613",
   if(verbose){utils::setTxtProgressBar(pb, 2)}
 
   # Execute the chat model
-  res <- chat4R_history(history=history,
+  res <- as.character(chat4R_history(history=history,
                         Model = Model,
-                        temperature = temperature)
+                        temperature = temperature))
 
   if(verbose){utils::setTxtProgressBar(pb, 3)}
 

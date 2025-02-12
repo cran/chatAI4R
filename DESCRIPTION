@@ -1,8 +1,8 @@
 Package: chatAI4R
 Type: Package
 Title: Chat-Based Interactive Artificial Intelligence for R
-Version: 0.2.10
-Date: 2023-09-12
+Version: 0.3.6
+Date: 2025-02-11
 Authors@R: c(
     person (given = "Satoshi", family = "Kume",
     role = c("aut", "cre"), 
@@ -19,16 +19,16 @@ Description: The Large Language Model (LLM) represents a groundbreaking advancem
     to other packages 'deepRstudio' and 'stableDiffusion4R'.
 Depends: R (>= 4.2.0)
 Imports: httr, jsonlite, assertthat, clipr, crayon, rstudioapi, future,
-        igraph, deepRstudio, pdftools, xml2, rvest
+        igraph, deepRstudio, pdftools, xml2, rvest, curl, base64enc
 Suggests: testthat, knitr
 License: Artistic-2.0
 URL: https://kumes.github.io/chatAI4R/,
         https://github.com/kumeS/chatAI4R
 BugReports: https://github.com/kumeS/chatAI4R/issues
-RoxygenNote: 7.2.3
+RoxygenNote: 7.3.2
 Encoding: UTF-8
 NeedsCompilation: no
-Packaged: 2023-09-12 14:25:27 UTC; sas
+Packaged: 2025-02-11 15:57:21 UTC; sas
 Author: Satoshi Kume [aut, cre] (<https://orcid.org/0000-0001-7481-2843>)
 Repository: CRAN
-Date/Publication: 2023-09-12 21:00:06 UTC
+Date/Publication: 2025-02-12 00:00:02 UTC

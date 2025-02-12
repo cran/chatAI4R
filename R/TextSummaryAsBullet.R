@@ -4,7 +4,7 @@
 #' @description This function takes a text input and summarizes it into a specified number of bullet points.
 #'    It can either take the selected code from RStudio or read from the clipboard.
 #'    The results are output to your clipboard.
-#' @param Model A string specifying the machine learning model to use for text summarization. Default is "gpt-4-0613".
+#' @param Model A string specifying the machine learning model to use for text summarization. Default is "gpt-4o-mini".
 #' @param temperature A numeric value between 0 and 1 indicating the randomness of the text generation. Default is 1.
 #' @param verbose A logical value indicating whether to print the summary. Default is FALSE.
 #' @param SelectedCode A logical value indicating whether to use the selected code in RStudio. Default is TRUE.
@@ -16,15 +16,20 @@
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
-#' TextSummaryAsBullet(text = "This is a sample text.")
+#' # Option 1
+#' # Select some text in RStudio and then run the rstudio addins
+#' # Option 2
+#' # Copy the text into your clipboard then execute
+#' TextSummaryAsBullet()
 #' }
 
-TextSummaryAsBullet <- function(Model = "gpt-4-0613",
+TextSummaryAsBullet <- function(Model = "gpt-4o-mini",
                                 temperature = 1,
                                 verbose = TRUE,
                                 SelectedCode = TRUE){
 
   # Get input either from RStudio or clipboard
+  assertthat::assert_that(is.logical(SelectedCode))
   if(SelectedCode){
     assertthat::assert_that(rstudioapi::isAvailable())
     input <- rstudioapi::getActiveDocumentContext()$selection[[1]]$text
@@ -34,7 +39,9 @@ TextSummaryAsBullet <- function(Model = "gpt-4-0613",
 
   if(verbose){
   cat("\n", "TextSummaryAsBullet: ", "\n")
-  pb <- utils::txtProgressBar(min = 0, max = 4, style = 3)}
+  pb <- utils::txtProgressBar(min = 0, max = 4, style = 3)
+  #cat("\n")
+  }
 
   #selection
   choices1 <- c(" 3 bullet points", " 6 bullet points",
@@ -62,7 +69,6 @@ TextSummaryAsBullet <- function(Model = "gpt-4-0613",
   assertthat::assert_that(assertthat::is.number(BulletPoints))
   assertthat::assert_that(assertthat::is.number(temperature), temperature >= 0, temperature <= 1)
   assertthat::assert_that(is.logical(verbose))
-  assertthat::assert_that(is.logical(SelectedCode))
 
   if(verbose){utils::setTxtProgressBar(pb, 1)}
 
@@ -82,6 +88,9 @@ TextSummaryAsBullet <- function(Model = "gpt-4-0613",
   "
 
   if(verbose){utils::setTxtProgressBar(pb, 2)}
+  if(nchar(text0) > 10000){
+    return(message("\nToo long text input: nchar >10000"))
+  }
 
   # Create the prompt
   template1 = "Please summarize the following text in %s bullet points.:"
@@ -95,9 +104,9 @@ TextSummaryAsBullet <- function(Model = "gpt-4-0613",
   if(verbose){utils::setTxtProgressBar(pb, 3)}
 
   # Execute text generation
-  res <- chat4R_history(history = history,
+  res <- as.character(chat4R_history(history = history,
                         Model = Model,
-                        temperature = temperature)
+                        temperature = temperature))
 
   if(verbose){utils::setTxtProgressBar(pb, 4)}
 

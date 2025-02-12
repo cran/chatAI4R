@@ -3,7 +3,7 @@
 #' @title Add Comments to R Code
 #' @description This function adds comments to R code without modifying the input R code.
 #'    It can either take the selected code from RStudio or read from the clipboard.
-#' @param Model A character string specifying the GPT model to be used. Default is "gpt-4-0613".
+#' @param Model A character string specifying the GPT model to be used. Default is "gpt-4o-mini".
 #' @param language A character string specifying the language for the comments. Default is "English".
 #' @param SelectedCode A logical value indicating whether to use the selected code in RStudio. Default is TRUE.
 #' @importFrom assertthat assert_that is.string noNA
@@ -14,10 +14,14 @@
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
-#' addCommentCode(Model = "gpt-4-0613", language = "English", SelectedCode = TRUE)
+#' # Option 1
+#' # Select some text in RStudio and then run the rstudio addins
+#' # Option 2
+#' # Copy the text into your clipboard then execute
+#' addCommentCode(Model = "gpt-4o-mini", language = "English", SelectedCode = TRUE)
 #' }
 
-addCommentCode <- function(Model = "gpt-4-0613",
+addCommentCode <- function(Model = "gpt-4o-mini",
                            language = "English",
                            SelectedCode = TRUE) {
 
@@ -64,9 +68,9 @@ addCommentCode <- function(Model = "gpt-4-0613",
                   list('role' = 'user', 'content' = template1s))
 
   # Execute text generation
-  res <- chat4R_history(history = history,
+  res <- as.character(chat4R_history(history = history,
                         Model = Model,
-                        temperature = temperature)
+                        temperature = temperature))
 
   # Output the enriched text
   if(SelectedCode){

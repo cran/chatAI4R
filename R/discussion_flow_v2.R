@@ -1,8 +1,10 @@
 #' Interactions and Flow Control Between LLM-based Bots (LLBs)
 #'
+#' In the v2 model, we added a regulation of the difficulty of the sentence,
+#' the human intervention in their conversation between LLM bots, and number of repetitions of conversation.
 #' This function is described to simulate the interactions and flow control between
-#' three different roles of LLM-based bots, abbreviated as LLBs,
-#' and to reproduce more realistic dialogues and discussions.
+#' three different roles of LLM-based bots, abbreviated as LLBs, namely A (Beginner), B (Expert), and C (Peer Reviewer).
+#' These roles have distinct functions and work together to facilitate more complex and meaningful discussions.
 #' Here is a brief description of the roles:
 #' A (Beginner): This bot generates questions and summaries based on the content of the discussion provided by the user.
 #' B (Expert): This bot provides professional answers to questions posed by LLB A.
@@ -15,44 +17,48 @@
 #' It is recommended to use GPT-4 or a model with higher accuracy than GPT-4.
 #' English is recommended as the input language, but the review will also be conducted in Japanese, the native language of the author.
 #'
-#' @title discussion_flow_v1: Interactions and Flow Control Between LLM-based Bots (LLBs)
+#' @title discussion_flow_v2: Interactions and Flow Control Between LLM-based Bots (LLBs)
 #' @description Simulates interactions and flow control between three different roles of LLM-based bots (LLBs).
 #' @param issue The issue to be discussed. Example: "I want to solve linear programming and create a timetable."
 #' @param Domain The domain of the discussion, default is "bioinformatics".
-#' @param Model The model to be used, default is "gpt-4o-mini".
+#' @param Model The LLM model to be used, default is "gpt-4o-mini".
 #' @param api_key The API key for OpenAI, default is retrieved from the system environment variable "OPENAI_API_KEY".
 #' @param language The language for the discussion, default is "English".
 #' @param Summary_nch The number of characters for the summary, default is 50.
+#' @param Sentence_difficulty Numeric, the complexity level for sentence construction, default is 2.
+#' @param R_expert_setting Logical, whether R expert settings are enabled, default is TRUE.
 #' @param verbose Logical, whether to print verbose output, default is TRUE.
-#' @param Nonfuture Logical, whether to use an asynchronous processing or not, default is not to use (TRUE).
-#' @param sayENorJA Logical, whether to say in English or Japanese, default is TRUE. This feature is available on  macOS system only.
+#' @param sayENorJA Logical, whether to speak in English or Japanese, default is TRUE. This feature is available on macOS systems only.
+#' @param rep_x Numeric, a number of repeat for the conversations.
+#' @param rep_x Numeric, a number of repeats for the conversations, default is 3.
 #' @importFrom future plan future multisession resolved
 #' @importFrom igraph graph add_vertices layout_nicely add_edges layout_with_fr
 #' @importFrom deepRstudio is_mac deepel
 #' @return A summary of the conversation between the bots.
-#' @export discussion_flow_v1
+#' @export discussion_flow_v2
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
 #' issue <-  "I want to solve linear programming and create a timetable."
 #'
 #' #Run Discussion with the domain of bioinformatics
-#' discussion_flow_v1(issue)
+#' discussion_flow_v2(issue)
 #' }
 
-#issue = "I want to solve linear programming and create a timetable.";Domain = "bioinformatics";Model = "gpt-4o-mini";api_key = Sys.getenv("OPENAI_API_KEY");language = "English";Summary_nch = 50; verbose = TRUE; sayENorJA = FALSE; Nonfuture = TRUE
+#issue = "I want to solve linear programming and create a timetable.";Domain = "bioinformatics";Model = "gpt-4o-mini";api_key = Sys.getenv("OPENAI_API_KEY");language = "English";Summary_nch = 50; verbose = TRUE; sayENorJA = FALSE; Sentence_difficulty = 2; R_expert_setting = TRUE; rep_x = 3
+#discussion_flow_v2(issue, sayENorJA = FALSE)
 
-#discussion_flow_v1(issue, sayENorJA = FALSE)
-
-discussion_flow_v1 <- function(issue,
+discussion_flow_v2 <- function(issue,
                                Domain = "bioinformatics",
                                Model = "gpt-4o-mini",
                                api_key = Sys.getenv("OPENAI_API_KEY"),
                                language = "English",
                                Summary_nch = 50,
+                               Sentence_difficulty = 2,
+                               R_expert_setting = TRUE,
                                verbose = TRUE,
-                               Nonfuture = TRUE,
-                               sayENorJA = TRUE){
+                               sayENorJA = TRUE,
+                               rep_x = 3){
 
 #Create multi-session
 future::plan(future::multisession())
@@ -76,12 +82,8 @@ vertex.color <- ifelse(igraph::V(g)$name == "H", "#AEDFF7", "#FFD1DC")
 edges_to_add <- c("H", "A",
                   "A", "B",
                   "B", "A",
-                  "A", "B",
-                  "B", "A",
                   "A", "C",
                   "C", "A",
-                  "A", "B",
-                  "B", "A",
                   "A", "H")
 
 # Decide voices on MacOS
@@ -110,22 +112,39 @@ if(deepRstudio::is_mac()){
   }
 }
 
+Sentence_difficulty0 <- switch(as.character(Sentence_difficulty),
+      "1" = "Make sure that you always answer using an expression that the elementary students can understand.",
+      "2" = "Make sure you are always sure to answer using plain language and simple sentences.",
+      "3" = "Make sure you always answer using technical terms and professional-sounding sentences.")
+
 #LLB Settings
-Setting_A <- "You are a beginner of %s. You can come up with lots of questions about a given %s topic, and you can ask great and pertinent questions. "
+Setting_A <- "You are a beginner of %s. You can come up with lots of questions about a given %s topic, and you can ask great and pertinent questions."
+
+if( R_expert_setting ){
 Setting_B <- "You are an expert of %s, an expert in the R language. You are very knowledgeable in %s and can answer any related question."
-Setting_C <- "You are a peer reviewer of %s. You have heard the summary stories of %s and can comment on improvements and shortcomings comprehensively and accurately.
+}else{
+Setting_B <- "You are an expert in %s in general. You are very knowledgeable in %s and can answer any related question."
+}
+
+if( R_expert_setting ){
+Setting_C <- "You are a peer reviewer of %s, an expert in the R language. You have heard the summary stories of %s and can comment on improvements and shortcomings comprehensively and accurately.
+Please explain in an easy-to-understand way for a first-time student. Please also suggest additional content that is missing from the discussion."
+}else{
+Setting_C <- "You are a peer reviewer of %s in general. You have heard the summary stories of %s and can comment on improvements and shortcomings comprehensively and accurately.
 Please explain in an easy-to-understand way for a first-time student. Please also suggest additional content that is missing from the discussion."
 #opt <- "Please return your answers as if you were having a conversation."
+}
 
 #Add domains
-Setting_A_R <- sprintf(Setting_A, Domain, Domain)
-Setting_B_R <- sprintf(Setting_B, Domain, Domain)
-Setting_C_R <- sprintf(Setting_C, Domain, Domain)
+Setting_A_R <- paste(sprintf(Setting_A, Domain, Domain), Sentence_difficulty0)
+Setting_B_R <- paste(sprintf(Setting_B, Domain, Domain), Sentence_difficulty0)
+Setting_C_R <- paste(sprintf(Setting_C, Domain, Domain), Sentence_difficulty0)
 
 #Task 1: create a question for the issue that the user provided
 prompt_A = "
 Please consider a question based on the following input in %s within %s words.:
 "
+
 # Substituting arguments into the prompt
 prompt_A1 <- paste0(sprintf(prompt_A, language, Summary_nch), issue, sep=" ")
 
@@ -179,9 +198,7 @@ if(sayENorJA){
 }else{
   if(DEEPL){
   system(paste("say -r", rate, "-v", H_AI_voices[1], "'", issue_ja, "'"))
-  }
-}
-})
+}}})
 
 #Task 2':
 #Printing
@@ -191,13 +208,12 @@ slow_print_v2(issue, delay = 5/nchar(issue))
 slow_print_v2(issue_ja, delay = 5/nchar(issue))
 }
 
-if(Nonfuture){
 repeat{
 if(all(future::resolved(fut), future::resolved(fut1))){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res1 <- future::value(fut1)[[1]]
@@ -209,6 +225,7 @@ res1_ja <- future::value(fut1)[[3]]
 prompt_B = "
 Please professionally respond to the following question in %s within %s words.:
 "
+
 # Substituting arguments into the prompt
 prompt_B1 <- paste0(sprintf(prompt_B, language, Summary_nch), res1, sep=" ")
 # Prompt creation
@@ -248,9 +265,7 @@ system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res1, "'"))
 }else{
   if(DEEPL){
   system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res1_ja, "'"))
-  }
-}
-})
+}}})
 
 #Printing
 if(sayENorJA){
@@ -261,13 +276,12 @@ message(crayon::cyan("LLB A: Question"))
 slow_print_v2(res1_ja, delay = 60/(rate*5))
 }
 
-if(Nonfuture){
 repeat{
 if(all(future::resolved(fut), future::resolved(fut3))){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res2 <- future::value(fut3)[[1]]
@@ -310,9 +324,7 @@ system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res2, "'"))
 }else{
   if(DEEPL){
   system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res2_ja, "'"))
-  }
-}
-})
+}}})
 
 #Task 4' Printing
 message(crayon::blue("LLB B: Answer"))
@@ -324,13 +336,12 @@ slow_print_v2(res2_ja, delay = 60/(rate*5))
 }
 
 #Release asynchronous processing
-if(Nonfuture){
 repeat{
 if(all(future::resolved(fut), future::resolved(fut4))){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res3 <- future::value(fut4)[[1]]
@@ -359,7 +370,7 @@ list(res4, LLB_B, res4_ja)
 
 #Graph 4
 main = "LLB A ask a question to LLB B"
-g1 <- igraph::add_edges(g, edges_to_add[7:8])
+g1 <- igraph::add_edges(g, edges_to_add[3:4])
 plot(g1, edge.arrow.size = 0.75,
      edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
      vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
@@ -374,9 +385,7 @@ system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res3, "'"))
 }else{
   if(DEEPL){
   system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res3_ja, "'"))
-}
-}
-})
+}}})
 
 #Task 5' Printing
 message(crayon::cyan("LLB A: Question"))
@@ -387,13 +396,12 @@ slow_print_v2(res3_ja, delay = 60/(rate*5))
 }
 
 #Release asynchronous processing
-if(Nonfuture){
 repeat{
 if(all(future::resolved(fut), future::resolved(fut5))){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res4 <- future::value(fut5)[[1]]
@@ -402,7 +410,7 @@ res4_ja <- future::value(fut5)[[3]]
 
 #Graph 5
 main = "LLB B answer to LLB A"
-g1 <- igraph::add_edges(g, edges_to_add[9:10])
+g1 <- igraph::add_edges(g, edges_to_add[5:6])
 plot(g1, edge.arrow.size = 0.75,
      edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
      vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
@@ -414,6 +422,7 @@ plot(g1, edge.arrow.size = 0.75,
 prompt_A3 = "
 Please sumerize the conversion with the following input in %s within %s words.:
 "
+
 prompt_A3 <- paste0(sprintf(prompt_A3, language, Summary_nch), res4, sep=" ")
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'user', 'content' = prompt_A3)
 
@@ -439,10 +448,7 @@ system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res4, "'"))
 }else{
 if(DEEPL){
   system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res4_ja, "'"))
-}
-
-}
-})
+}}})
 
 #Printing
 message(crayon::blue("LLB B: Answer"))
@@ -454,19 +460,20 @@ slow_print_v2(res4_ja, delay = 60/(rate*5))
 }
 
 #Release asynchronous processing
-if(Nonfuture){
 repeat{
 if(all(future::resolved(fut), future::resolved(fut6))){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res5 <- future::value(fut6)[[1]]
 LLB_A <- future::value(fut6)[[2]]
 res5_ja <- future::value(fut6)[[3]]
 
+#######################################################################
+#######################################################################
 #Task 7: Critical reading
 prompt_C = "
 Please critically peer review and propose the improvement points for the following input in %s within %s words.:
@@ -493,7 +500,7 @@ list(res6, res6_ja)
 
 #Graph 6
 main = "LLB A sumirize talks to LLB C"
-g1 <- igraph::add_edges(g, edges_to_add[11:12])
+g1 <- igraph::add_edges(g, edges_to_add[7:8])
 plot(g1, edge.arrow.size = 0.75,
      edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
      vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
@@ -523,18 +530,68 @@ slow_print_v2(res5_ja, delay = 60/(rate*5))
 }
 
 #Release asynchronous processing
-if(Nonfuture){
 repeat{
 if(all(future::resolved(fut), future::resolved(fut7))){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res6 <- future::value(fut7)[[1]]
 res6_ja <- future::value(fut7)[[2]]
 
+
+#Graph 6
+main = "LLB C provide review comments to LLB A"
+g1 <- igraph::add_edges(g, edges_to_add[9:10])
+plot(g1, edge.arrow.size = 0.75,
+     edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
+     vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
+     vertex.label.cex = vertex.label.cex, vertex.label = labels,
+     vertex.size = vertex.size, vertex.size2 = vertex.size2,
+     main = main)
+
+#LLB C say
+fut <- future::future({
+if(sayENorJA){
+system(paste("say -r", rate, "-v", H_AI_voices[4], "'", res6, "'"))
+}else{
+if(DEEPL){
+  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res6_ja, "'"))
+}}})
+
+#Printing
+message(crayon::green("LLB C: Review"))
+
+#Printing
+if(sayENorJA){
+slow_print_v2(res6, delay = 60/(rate*5))
+}else{
+slow_print_v2(res6_ja, delay = 60/(rate*5))
+}
+
+#Release asynchronous processing
+repeat{
+if(future::resolved(fut)){
+break()
+}else{
+Sys.sleep(0.5)
+}}
+
+#######################################################################
+#######################################################################
+#Human intervention:
+Ans <- utils::askYesNo("Do you have an intervention for this conversation?")
+if(Ans){
+  intervention <- readline(prompt = paste("Please enter your intervention: "))
+  Human_intervention_en <- deepRstudio::deepel(input = intervention, target_lang = "EN")$text
+  res6 <- paste("Human's comment (Make sure you follow these rules from human): ",
+                 Human_intervention_en,
+                 " Reviewer's comment: ", res6)
+}
+#######################################################################
+#######################################################################
 #Task 8: Create question
 # Substituting arguments into the prompt
 prompt_A4 <- paste0(sprintf(prompt_A, language, Summary_nch), res6, sep=" ")
@@ -553,51 +610,32 @@ if(!sayENorJA){
 list(res7, LLB_A, res7_ja)
 })
 
-#Graph 6
-main = "LLB C provide review comments to LLB A"
-g1 <- igraph::add_edges(g, edges_to_add[13:14])
-plot(g1, edge.arrow.size = 0.75,
-     edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
-     vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
-     vertex.label.cex = vertex.label.cex, vertex.label = labels,
-     vertex.size = vertex.size, vertex.size2 = vertex.size2,
-     main = main)
-
-#LLB C say
-fut <- future::future({
-if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[4], "'", res6, "'"))
-}else{
-if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res6_ja, "'"))
-}
-}
-})
-
-#Printing
-message(crayon::green("LLB C: Review"))
-
-#Printing
-if(sayENorJA){
-slow_print_v2(res6, delay = 60/(rate*5))
-}else{
-slow_print_v2(res6_ja, delay = 60/(rate*5))
-}
-
 #Release asynchronous processing
-if(Nonfuture){
 repeat{
 if(all(future::resolved(fut), future::resolved(fut8))){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res7 <- future::value(fut8)[[1]]
 LLB_A <- future::value(fut8)[[2]]
 res7_ja <- future::value(fut8)[[3]]
 
+#######################################################################
+#######################################################################
+#Human intervention:
+if(Ans){
+  res7 <- paste(res7, Human_intervention_en)
+
+  if(!sayENorJA){
+  if(DEEPL){
+  res7_ja <- deepRstudio::deepel(input = res7, target_lang = "JA")$text
+  }}
+}
+#######################################################################
+#######################################################################
 #Task 08: ask it to the expert
 # Substituting arguments into the prompt
 prompt_B3 <- paste0(sprintf(prompt_B, language, Summary_nch), res7, sep=" ")
@@ -619,7 +657,7 @@ list(res8, LLB_B, res8_ja)
 
 #Graph 8
 main = "LLB A ask a question to LLB B"
-g1 <- igraph::add_edges(g, edges_to_add[15:16])
+g1 <- igraph::add_edges(g, edges_to_add[3:4])
 plot(g1, edge.arrow.size = 0.75,
      edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
      vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
@@ -635,9 +673,7 @@ system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res7, "'"))
 }else{
 if(DEEPL){
   system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res7_ja, "'"))
-}
-}
-})
+}}})
 
 #Printing
 message(crayon::cyan("LLB A ask: Question"))
@@ -650,19 +686,223 @@ slow_print_v2(res7_ja, delay = 60/(rate*5))
 }
 
 #Release asynchronous processing
-if(Nonfuture){
 repeat{
 if(all(future::resolved(fut), future::resolved(fut9))){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res8 <- future::value(fut9)[[1]]
 LLB_B <- future::value(fut9)[[2]]
 res8_ja <- future::value(fut9)[[3]]
 
+#Graph 9
+main = "LLB B answer to LLB A"
+g1 <- igraph::add_edges(g, edges_to_add[5:6])
+plot(g1, edge.arrow.size = 0.75,
+     edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
+     vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
+     vertex.label.cex = vertex.label.cex, vertex.label = labels,
+     vertex.size = vertex.size, vertex.size2 = vertex.size2,
+     main = main)
+
+#LLB B say
+fut <- future::future({
+if(sayENorJA){
+system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res8, "'"))
+}else{
+if(DEEPL){
+  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res8_ja, "'"))
+}}})
+
+#Printing
+message(crayon::blue("LLB B: Answer"))
+
+#Printing
+if(sayENorJA){
+slow_print_v2(res8, delay = 60/(rate*5))
+}else{
+slow_print_v2(res8_ja, delay = 60/(rate*5))
+}
+
+#Release asynchronous processing
+repeat{
+if(future::resolved(fut)){
+break()
+}else{
+Sys.sleep(0.5)
+}}
+
+#######################################################################
+#######################################################################
+#######################################################################
+#######################################################################
+#######################################################################
+#Here is a repeart point;
+res <- res8
+LLB_A <- LLB_A[c(1, length(LLB_A)-3, length(LLB_A)-2, length(LLB_A)-1, length(LLB_A))]
+LLB_B <- LLB_B[c(1, length(LLB_B)-3, length(LLB_B)-2, length(LLB_B)-1, length(LLB_B))]
+
+for(x in seq_len(rep_x)){
+
+if(x%%2 != 0){
+#Human intervention:
+Ans <- utils::askYesNo("Do you have an intervention for this conversation?")
+if(Ans){
+  intervention <- readline(prompt = paste("Please enter your intervention: "))
+  Human_intervention_en <- deepRstudio::deepel(input = intervention, target_lang = "EN")$text
+  res <- paste("Make sure you follow these rules: ",
+                 Human_intervention_en, res)
+}}
+
+# Substituting arguments into the prompt
+prompt_AR <- paste0(sprintf(prompt_A, language, Summary_nch), res, sep=" ")
+LLB_A[[length(LLB_A) + 1]] <- list('role' = 'user', 'content' = prompt_AR)
+
+futR <- future::future({
+res <- chat4R_history(history = LLB_A,
+               api_key = api_key, Model = Model, temperature = 1)
+LLB_A[[length(LLB_A) + 1]] <- list('role' = 'assistant', 'content' = res)
+
+if(!sayENorJA){
+  if(DEEPL){
+  res_ja <- deepRstudio::deepel(input = res, target_lang = "JA")$text
+}}
+
+list(res, LLB_A, res_ja)
+})
+
+main = "LLB A ask a question to LLB B"
+g1 <- igraph::add_edges(g, edges_to_add[3:4])
+plot(g1, edge.arrow.size = 0.75,
+     edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
+     vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
+     vertex.label.cex = vertex.label.cex, vertex.label = labels,
+     vertex.size = vertex.size, vertex.size2 = vertex.size2,
+     main = main)
+
+#Release asynchronous processing
+repeat{
+if(all(future::resolved(futR))){
+break()
+}else{
+Sys.sleep(0.5)
+}}
+
+#re-input
+res <- future::value(futR)[[1]]
+LLB_A <- future::value(futR)[[2]]
+res_ja <- future::value(futR)[[3]]
+
+#LLB A say
+fut <- future::future({
+if(sayENorJA){
+system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res, "'"))
+}else{
+if(DEEPL){
+  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res_ja, "'"))
+}}})
+
+#Printing
+message(crayon::cyan("LLB A: Question"))
+
+#Printing
+if(sayENorJA){
+slow_print_v2(res, delay = 60/(rate*5))
+}else{
+slow_print_v2(res_ja, delay = 60/(rate*5))
+}
+
+#Release asynchronous processing
+repeat{
+if(future::resolved(fut)){
+break()
+}else{
+Sys.sleep(0.5)
+}}
+
+#######################################################################
+#######################################################################
+# Substituting arguments into the prompt
+prompt_BR <- paste0(sprintf(prompt_B, language, Summary_nch), res, sep=" ")
+# Prompt creation
+LLB_B[[length(LLB_B) + 1]] <- list('role' = 'user', 'content' = prompt_BR)
+
+futR <- future::future({
+res <- chat4R_history(history = LLB_B,
+               api_key = api_key, Model = Model, temperature = 1)
+LLB_B[[length(LLB_B) + 1]] <- list('role' = 'assistant', 'content' = res)
+
+if(!sayENorJA){
+  if(DEEPL){
+  res_ja <- deepRstudio::deepel(input = res, target_lang = "JA")$text
+}}
+
+list(res, LLB_B, res_ja)
+})
+
+#Graph 8
+main = "LLB B answer to LLB A"
+g1 <- igraph::add_edges(g, edges_to_add[5:6])
+plot(g1, edge.arrow.size = 0.75,
+     edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
+     vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
+     vertex.label.cex = vertex.label.cex, vertex.label = labels,
+     vertex.size = vertex.size, vertex.size2 = vertex.size2,
+     main = main)
+
+#Release asynchronous processing
+repeat{
+if(all(future::resolved(fut), future::resolved(futR))){
+break()
+}else{
+Sys.sleep(0.5)
+}}
+
+#re-input
+res <- future::value(futR)[[1]]
+LLB_B <- future::value(futR)[[2]]
+res_ja <- future::value(futR)[[3]]
+
+#LLB B say
+fut <- future::future({
+if(sayENorJA){
+system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res, "'"))
+}else{
+if(DEEPL){
+  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res_ja, "'"))
+}}})
+
+#Printing
+message(crayon::blue("LLB B: Answer"))
+
+#Printing
+if(sayENorJA){
+slow_print_v2(res, delay = 60/(rate*5))
+}else{
+slow_print_v2(res_ja, delay = 60/(rate*5))
+}
+
+#Release asynchronous processing
+repeat{
+if(all(future::resolved(fut), future::resolved(futR))){
+break()
+}else{
+Sys.sleep(0.5)
+}}
+
+}
+
+#Results
+res8 <- res
+
+#######################################################################
+#######################################################################
+#######################################################################
+#######################################################################
+#######################################################################
 #Task 6: summarize the conversation
 prompt_A3 = "
 Please sumerize the conversion with the following input in %s within %s words.:
@@ -683,45 +923,13 @@ list(res9, res9_ja)
 
 })
 
-#Graph 9
-main = "LLB B answer to LLB A"
-g1 <- igraph::add_edges(g, edges_to_add[17:18])
-plot(g1, edge.arrow.size = 0.75,
-     edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
-     vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
-     vertex.label.cex = vertex.label.cex, vertex.label = labels,
-     vertex.size = vertex.size, vertex.size2 = vertex.size2,
-     main = main)
-
-#LLB B say
-fut <- future::future({
-if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res8, "'"))
-}else{
-if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res8_ja, "'"))
-}
-}
-})
-
-#Printing
-message(crayon::blue("LLB B: Answer"))
-
-#Printing
-if(sayENorJA){
-slow_print_v2(res8, delay = 60/(rate*5))
-}else{
-slow_print_v2(res8_ja, delay = 60/(rate*5))
-}
-
 #Release asynchronous processing
-if(Nonfuture){
 repeat{
-if(all(future::resolved(fut), future::resolved(fut10))){
+if(future::resolved(fut10)){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 #re-input
 res9 <- future::value(fut10)[[1]]
@@ -729,7 +937,7 @@ res9_ja <- future::value(fut10)[[2]]
 
 #Graph 10
 main = "LLB A report 2nd summary to Human"
-g1 <- igraph::add_edges(g, edges_to_add[19:20])
+g1 <- igraph::add_edges(g, edges_to_add[11:12])
 plot(g1, edge.arrow.size = 0.75,
      edge.arrow.size = 1, edge.arrow.width = 2, vertex.label.color = "black",
      vertex.shape = shapes, layout = layout, vertex.color=vertex.color,
@@ -747,9 +955,7 @@ system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res9, "'"))
 }else{
 if(DEEPL){
   system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res9_ja, "'"))
-}
-}
-})
+}}})
 
 #Printing
 if(sayENorJA){
@@ -759,13 +965,12 @@ slow_print_v2(res9_ja, delay = 60/(rate*5))
 }
 
 #Release asynchronous processing
-if(Nonfuture){
 repeat{
 if(future::resolved(fut)){
 break()
 }else{
 Sys.sleep(0.5)
-}}}
+}}
 
 return(message("Finished!!"))
 

@@ -3,7 +3,7 @@
 #' @title Add Roxygen Description to R Function
 #' @description This function adds a Roxygen description to an R function using the GPT-4 model.
 #'    It can either take the selected code from RStudio or read from the clipboard.
-#' @param Model A character string specifying the GPT model to be used. Default is "gpt-4-0613".
+#' @param Model A character string specifying the GPT model to be used. Default is "gpt-4o-mini".
 #' @param SelectedCode A logical value indicating whether to use the selected code in RStudio. Default is TRUE.
 #' @param verbose Logical flag to indicate whether to display the generated text. Default is TRUE.
 #' @importFrom assertthat assert_that is.string noNA
@@ -14,10 +14,14 @@
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
-#' addRoxygenDescription(Model = "gpt-4-0613", SelectedCode = TRUE)
+#' # Option 1
+#' # Select some text in RStudio and then run the rstudio addins
+#' # Option 2
+#' # Copy the text into your clipboard then execute
+#' addRoxygenDescription(Model = "gpt-4o-mini", SelectedCode = FALSE)
 #' }
 
-addRoxygenDescription <- function(Model = "gpt-4-0613",
+addRoxygenDescription <- function(Model = "gpt-4o-mini",
                                  SelectedCode = TRUE,
                                  verbose = TRUE) {
 
@@ -77,9 +81,9 @@ addRoxygenDescription <- function(Model = "gpt-4-0613",
   if(verbose){utils::setTxtProgressBar(pb, 2)}
 
   # Execute text generation
-  res <- chat4R_history(history = history,
+  res <- as.character(chat4R_history(history = history,
                         Model = Model,
-                        temperature = temperature)
+                        temperature = temperature))
 
   if(verbose){
     utils::setTxtProgressBar(pb, 3)

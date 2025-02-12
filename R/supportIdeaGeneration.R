@@ -6,7 +6,7 @@
 #'
 #' @title supportIdeaGeneration: Support Idea Generation from Selected Text or Clipboard.
 #' @description Assist in generating ideas or concepts.
-#' @param Model The OpenAI GPT model to use for text generation. Default is "gpt-4-0613".
+#' @param Model The OpenAI GPT model to use for text generation. Default is "gpt-4o-mini".
 #' @param SelectedCode Logical flag to indicate whether to use the selected text in RStudio editor. Default is TRUE.
 #' @param verbose Logical flag to indicate whether to display the generated text. Default is TRUE.
 #' @param SlowTone Logical flag to indicate whether to print the text slowly. Default is FALSE.
@@ -19,10 +19,14 @@
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
+#' # Option 1
+#' # Select some text in RStudio and then run the rstudio addins
+#' # Option 2
+#' # Copy the text into your clipboard then execute
 #' supportIdeaGeneration()
 #' }
 
-supportIdeaGeneration <- function(Model = "gpt-4-0613",
+supportIdeaGeneration <- function(Model = "gpt-4o-mini",
                                   SelectedCode = TRUE,
                                   verbose = TRUE,
                                   SlowTone = FALSE) {
@@ -76,9 +80,9 @@ supportIdeaGeneration <- function(Model = "gpt-4-0613",
   if(verbose){utils::setTxtProgressBar(pb, 2)}
 
   # Execute the chat model
-  res <- chat4R_history(history=history,
+  res <- as.character(chat4R_history(history=history,
                         Model = Model,
-                        temperature = temperature)
+                        temperature = temperature))
 
   if(verbose){
     utils::setTxtProgressBar(pb, 3)

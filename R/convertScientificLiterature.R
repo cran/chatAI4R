@@ -6,7 +6,7 @@
 #'
 #' @title convertScientificLiterature
 #' @description Convert input text into scientific literature.
-#' @param Model The OpenAI GPT model to use for text generation. Default is "gpt-4-0613".
+#' @param Model The OpenAI GPT model to use for text generation. Default is "gpt-4o-mini".
 #' @param SelectedCode Logical flag to indicate whether to read the input from RStudio's active document. Default is TRUE.
 #' @importFrom rstudioapi isAvailable getActiveDocumentContext
 #' @importFrom clipr read_clip write_clip
@@ -16,10 +16,14 @@
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
+#' # Option 1
+#' # Select some text in RStudio and then run the rstudio addins
+#' # Option 2
+#' # Copy the text into your clipboard then execute
 #' convertScientificLiterature(SelectedCode = FALSE)
 #' }
 
-convertScientificLiterature <- function(Model = "gpt-4-0613",
+convertScientificLiterature <- function(Model = "gpt-4o-mini",
                                         SelectedCode = TRUE) {
 
   # Read input either from RStudio active document or clipboard
@@ -70,6 +74,6 @@ convertScientificLiterature <- function(Model = "gpt-4-0613",
     rstudioapi::insertText(text = as.character(res))
   } else {
     # Write to the clipboard
-    return(clipr::write_clip(res))
+    return(clipr::write_clip(as.character(res)))
   }
 }
