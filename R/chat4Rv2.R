@@ -3,12 +3,14 @@
 #' @title chat4Rv2: Interact with gpt-4o-mini (default) using OpenAI API
 #' @description This function uses the OpenAI API to interact with the
 #'    gpt-4o-mini model (default) and generates responses based on user input.
-#'    In this function, currently, "gpt-4o-mini", "gpt-4o", "gpt-4", "gpt-4-turbo" and "gpt-3.5-turbo"
+#'    In this function, currently, "gpt-4o-mini" (default), "gpt-4o", "gpt-4", and "gpt-4-turbo"
 #'    can be selected as OpenAI's LLM model.
 #' @param content A string containing the user's input message.
 #' @param api_key A string containing the user's OpenAI API key.
 #'    Defaults to the value of the environment variable "OPENAI_API_KEY".
 #' @param Model A string specifying the GPT model to use (default: "gpt-4o-mini").
+#'        The function automatically handles parameter compatibility for newer models (o3, o1, gpt-4o series) 
+#'        that require max_completion_tokens instead of max_tokens.
 #' @param temperature A numeric value controlling the randomness of the model's output (default: 1).
 #' @param max_tokens A numeric value specifying the maximum number of tokens to generate (default is 50).
 #' @param simple Logical, if TRUE, only the content of the model's message will be returned.
@@ -67,12 +69,23 @@ chat4Rv2 <- function(content,
   }
 
   # Define the body of the API request including max_tokens
+  # Check if model requires max_completion_tokens instead of max_tokens
+  # Newer models like o3-mini, o1 series, and gpt-4o models use max_completion_tokens
+  token_param_name <- if (grepl("^o3", Model) || grepl("^o1", Model) || grepl("^gpt-4o", Model)) {
+    "max_completion_tokens"
+  } else {
+    "max_tokens"
+  }
+  
+  # Create base body structure
   body <- list(model = Model,
                messages = messages_list,
                temperature = temperature,
-               max_tokens = max_tokens,
                top_p = top_p,
                n = n)
+  
+  # Add the appropriate token parameter
+  body[[token_param_name]] <- max_tokens
 
   # Send a POST request to the OpenAI server
   response <- httr::POST(url = api_url,
@@ -80,9 +93,30 @@ chat4Rv2 <- function(content,
                          encode = "json",
                          config = headers)
 
-  # Extract and return the response content
+  # Check HTTP status code first
+  if (httr::status_code(response) != 200) {
+    error_content <- httr::content(response, "parsed")
+    error_msg <- if (!is.null(error_content$error$message)) {
+      error_content$error$message
+    } else {
+      paste("HTTP", httr::status_code(response), "error")
+    }
+    stop("API Error (", httr::status_code(response), "): ", error_msg)
+  }
+
+  # Parse response content safely
+  resp_parsed <- httr::content(response, "parsed")
+
+  # Extract and return the response content with safe access
   if (simple) {
-    return(data.frame(content = httr::content(response, "parsed")$choices[[1]]$message$content))
+    # Safe access to nested data structure
+    if (!is.null(resp_parsed$choices) && length(resp_parsed$choices) > 0 && 
+        !is.null(resp_parsed$choices[[1]]$message) && 
+        !is.null(resp_parsed$choices[[1]]$message$content)) {
+      return(data.frame(content = resp_parsed$choices[[1]]$message$content))
+    } else {
+      stop("Unexpected API response format: choices or message content not found")
+    }
   } else {
     if (fromJSON_parsed) {
       raw_content <- httr::content(response, "raw")
@@ -90,7 +124,7 @@ chat4Rv2 <- function(content,
       parsed_data <- jsonlite::fromJSON(char_content)
       return(parsed_data)
     } else {
-      return(data.frame(httr::content(response, "parsed")))
+      return(data.frame(resp_parsed))
     }
   }
 }

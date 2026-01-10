@@ -13,6 +13,7 @@
 #' @param initialization A logical flag to initialize a new conversation. Default is FALSE.
 #' @param verbose A logical flag to print the conversation. Default is TRUE.
 #' @importFrom assertthat assert_that is.string is.count is.flag
+#' @importFrom crayon red blue
 #' @return Prints the conversation if verbose is TRUE. No return value.
 #' @export conversation4R
 #' @author Satoshi Kume
@@ -40,15 +41,11 @@ assertthat::assert_that(assertthat::is.string(system_set))
 assertthat::assert_that(assertthat::is.count(ConversationBufferWindowMemory_k))
 assertthat::assert_that(assertthat::is.flag(initialization))
 
-# Initialization
-if(!exists("chat_history")){
-chat_history <- new.env()
-chat_history$history <- c()
-} else {
-if(initialization){
-chat_history <- new.env()
-chat_history$history <- c()
-}}
+# Initialization - keep chat_history inside package state (not .GlobalEnv)
+chat_history <- .get_chat_history_env()
+if (initialization || length(chat_history$history) == 0) {
+  chat_history <- .reset_chat_history_env()
+}
 
 # Define
 temperature = 1
@@ -67,17 +64,29 @@ Human: %s"
 system_set4 = "
 Assistant: %s"
 
-if(identical(as.character(chat_history$history), character(0))){
+if(length(chat_history$history) == 0){
 
 chat_historyR <- list(
   list(role = "system", content = system_set),
   list(role = "user", content = message))
 
-# Run
-res <- chatAI4R::chat4R_history(history = chat_historyR,
-               api_key = api_key,
-               Model = Model,
-               temperature = temperature)
+# Run with safe error handling
+res_df <- tryCatch({
+  chatAI4R::chat4R_history(history = chat_historyR,
+                          api_key = api_key,
+                          Model = Model,
+                          temperature = temperature)
+}, error = function(e) {
+  stop("Failed to get response from chat4R_history: ", e$message, call. = FALSE)
+})
+
+# Extract content from data.frame and validate response
+if (is.null(res_df) || !is.data.frame(res_df) || !"content" %in% names(res_df) || 
+    is.null(res_df$content) || length(res_df$content) == 0 || nchar(trimws(res_df$content)) == 0) {
+  stop("Invalid or empty response from chat4R_history", call. = FALSE)
+}
+
+res <- as.character(res_df$content)
 
 
 system_set3s <- sprintf(system_set3, message)
@@ -99,10 +108,12 @@ if(verbose){
 
 }else{
 
-if(!identical(as.character(chat_history$history), character(0))){
+# Handle continuing conversation (chat_history exists and has content)
 
 if(length(chat_history$history) > ConversationBufferWindowMemory_k*2 + 1){
-  chat_historyR <- chat_history$history[(length(chat_history)-1):length(chat_history)]
+  # Keep system message + last k pairs of user/assistant messages
+  start_idx <- length(chat_history$history) - (ConversationBufferWindowMemory_k*2)
+  chat_historyR <- c(chat_history$history[1], chat_history$history[start_idx:length(chat_history$history)])
 }else{
   chat_historyR <- chat_history$history
 }
@@ -111,37 +122,73 @@ if(length(chat_history$history) > ConversationBufferWindowMemory_k*2 + 1){
 new_conversation <- list(list(role = "user", content = message))
 chat_historyR <- c(chat_historyR, new_conversation)
 
-# Run
-res <- chatAI4R::chat4R_history(history = chat_historyR,
-               api_key = api_key,
-               Model = Model,
-               temperature = temperature)
+# Run with safe error handling
+res_df <- tryCatch({
+  chatAI4R::chat4R_history(history = chat_historyR,
+                          api_key = api_key,
+                          Model = Model,
+                          temperature = temperature)
+}, error = function(e) {
+  stop("Failed to get response from chat4R_history: ", e$message, call. = FALSE)
+})
+
+# Extract content from data.frame and validate response
+if (is.null(res_df) || !is.data.frame(res_df) || !"content" %in% names(res_df) || 
+    is.null(res_df$content) || length(res_df$content) == 0 || nchar(trimws(res_df$content)) == 0) {
+  stop("Invalid or empty response from chat4R_history", call. = FALSE)
+}
+
+res <- as.character(res_df$content)
 
 assistant_conversation<- list(list(role = "assistant", content = res))
 chat_historyR <- c(chat_historyR, assistant_conversation)
 
+# Update chat_history with new conversation
+chat_history$history <- chat_historyR
+
+# Generate display history from updated chat_history (excluding current exchange)
 rr <- c()
-for(n in 2:length(chat_history$history)){
-r <- switch(chat_history$history[[n]]$role,
-                 "system" = paste0("System: ", chat_history$history[[n]]$content),
-                 "user" = paste0("\nHuman: ", chat_history$history[[n]]$content),
-                 "assistant" = paste0("\nAssistant: ", chat_history$history[[n]]$content))
-rr <- c(rr, r)
+if(length(chat_history$history) > 3) {  # More than system + current user + current assistant
+  for(n in 2:(length(chat_history$history)-2)){  # Exclude current user/assistant pair
+    # Safe access to history elements with null checks
+    if (!is.null(chat_history$history[[n]]) && 
+        !is.null(chat_history$history[[n]]$role) && 
+        !is.null(chat_history$history[[n]]$content)) {
+      
+      r <- switch(chat_history$history[[n]]$role,
+                   "system" = paste0("System: ", chat_history$history[[n]]$content),
+                   "user" = paste0("\nHuman: ", chat_history$history[[n]]$content),
+                   "assistant" = paste0("\nAssistant: ", chat_history$history[[n]]$content),
+                   paste0("\nUnknown: ", chat_history$history[[n]]$content))  # fallback
+      rr <- c(rr, r)
+    }
+  }
 }
 
 system_set2s <- sprintf(system_set2, paste0(rr, collapse = ""))
 
+# Safe access to conversation elements with null checks
+user_content <- if (!is.null(new_conversation[[1]]) && !is.null(new_conversation[[1]]$content)) {
+  new_conversation[[1]]$content
+} else {
+  "Error: Missing user content"
+}
+
+assistant_content <- if (!is.null(assistant_conversation[[1]]) && !is.null(assistant_conversation[[1]]$content)) {
+  assistant_conversation[[1]]$content
+} else {
+  "Error: Missing assistant content"
+}
+
 out <- c(paste0("System: ", system_set),
          system_set2s,
-         crayon::red(sprintf(system_set3, new_conversation[[1]]$content)),
-         crayon::blue(sprintf(system_set4, assistant_conversation[[1]]$content)))
-
-chat_history$history <- chat_historyR
+         crayon::red(sprintf(system_set3, user_content)),
+         crayon::blue(sprintf(system_set4, assistant_content)))
 
 if(verbose){
   cat(out)
 }
 
 }
-}
+invisible(chat_history$history)
 }

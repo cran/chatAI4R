@@ -8,28 +8,52 @@ textFileInput4ai(
   file_path,
   model = "gpt-4o-mini",
   system_prompt = "You are a helpful assistant to analyze your input.",
-  max_tokens = 50,
-  api_key = Sys.getenv("OPENAI_API_KEY")
+  max_tokens = 1000,
+  max_input_chars = 10000,
+  api_key = Sys.getenv("OPENAI_API_KEY"),
+  has_header = TRUE,
+  show_progress = TRUE,
+  summarize_results = FALSE
 )
 }
 \arguments{
 \item{file_path}{A string representing the path to the text or csv file to be read and sent to the API.}
 
-\item{model}{A string specifying the OpenAI model to be used (default is "gpt-4o-mini").}
+\item{model}{A string specifying the OpenAI model to be used (default is "gpt-4o-mini"). 
+The function automatically handles parameter compatibility for newer models (o3, o1, gpt-4o series) 
+that require max_completion_tokens instead of max_tokens.}
 
 \item{system_prompt}{Optional. A system-level instruction that can be used to guide the model's behavior
 (default is "You are a helpful assistant to analyze your input.").}
 
 \item{max_tokens}{A numeric value specifying the maximum number of tokens to generate (default is 50).}
 
+\item{max_input_chars}{A numeric value specifying the maximum number of characters to send in a single API request.
+If the text content exceeds this value, it will be split into chunks (default is 10000).}
+
 \item{api_key}{A string containing the OpenAI API key. Defaults to the "OPENAI_API_KEY" environment variable.}
+
+\item{has_header}{Logical indicating whether the input file has a header row (default is TRUE).}
+
+\item{show_progress}{Logical indicating whether to display progress information during processing (default is TRUE).}
+
+\item{summarize_results}{Logical indicating whether to summarize the final results using the system prompt (default is FALSE).
+Only applies when text content is split into multiple chunks.}
 }
 \value{
-A character string containing the response from the OpenAI API.
+If the text content is within the max_input_chars limit, returns a character string containing
+        the response from the OpenAI API. If the content exceeds the limit, returns a list of responses.
+        If the text file contains invalid multibyte characters, the function will attempt to clean and
+        normalize the text before processing. If summarize_results is TRUE and chunks are processed,
+        an additional summarized response will be returned as the last element of the list.
 }
 \description{
 This function reads the content of a specified text file, sends it to the OpenAI API
 using the provided API key, and retrieves the generated response from the GPT model.
+If the text content exceeds the max_input_chars threshold, it will be automatically split
+into smaller chunks based on character count and processed separately, with results returned as a list.
+The function handles invalid multibyte strings automatically by cleaning and converting text encoding.
+It can also handle files with header rows and displays progress during processing.
 }
 \examples{
 \dontrun{
@@ -37,7 +61,7 @@ using the provided API key, and retrieves the generated response from the GPT mo
   api_key <- "YOUR_OPENAI_API_KEY"
   file_path <- "path/to/your/text_file.txt"
   response <- textFileInput4ai(file_path, api_key = api_key, max_tokens = 50)
-  cat(response)
+
 }
 }
 \author{

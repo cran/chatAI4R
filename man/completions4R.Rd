@@ -2,12 +2,12 @@
 % Please edit documentation in R/completions4R.R
 \name{completions4R}
 \alias{completions4R}
-\title{completions4R: Generate text using OpenAI completions API (Legacy)}
+\title{completions4R: Generate text using OpenAI completions API (Legacy - DEPRECATED)}
 \usage{
 completions4R(
   prompt,
   api_key = Sys.getenv("OPENAI_API_KEY"),
-  Model = "davinci-002",
+  Model = "gpt-3.5-turbo-instruct",
   max_tokens = 50,
   temperature = 1,
   simple = TRUE
@@ -18,7 +18,7 @@ completions4R(
 
 \item{api_key}{A string. The API key for OpenAI. Defaults to the value of the environment variable "OPENAI_API_KEY".}
 
-\item{Model}{A string. The model ID to use, such as "davinci-002".}
+\item{Model}{A string. The model ID to use, such as "davinci-002" or "gpt-3.5-turbo-instruct".}
 
 \item{max_tokens}{Integer. The maximum number of tokens to generate.}
 
@@ -31,12 +31,28 @@ A value close to 0 produces more deterministic output, while a higher value (up 
 The generated text or the full response from the API, depending on the value of `simple`.
 }
 \description{
-This function sends a request to the OpenAI completions API (Legacy)
-  to generate text based on the provided prompt and parameters.
+**[WARNING] DEPRECATED AND SCHEDULED FOR REMOVAL**: This function uses the legacy OpenAI completions API 
+  which is being phased out by OpenAI. **This function will be removed in a future version.**
+  
+  **MIGRATION REQUIRED**: Please migrate to chat4R() for all new implementations.
+  The chat4R() function uses the modern OpenAI Chat Completions API and provides better performance,
+  more features, and continued support.
+  
+  **Migration Example**:
+  ```r
+  # Old (deprecated):
+  result <- completions4R("Your prompt here")
+  
+  # New (recommended):
+  result <- chat4R("Your prompt here")
+  text_content <- result$content
+  ```
+  
+  This function sends a request to the OpenAI completions API to generate text based on the provided prompt and parameters.
 }
 \examples{
 \dontrun{
-#This is a legacy function
+# DEPRECATED: Use chat4R() instead for new code
 Sys.setenv(OPENAI_API_KEY = "Your API key")
 
 prompt <- "Translate the following English text to French: 'Hello, world!'"

@@ -19,7 +19,7 @@
 #'
 #' @title discussion_flow_v2: Interactions and Flow Control Between LLM-based Bots (LLBs)
 #' @description Simulates interactions and flow control between three different roles of LLM-based bots (LLBs).
-#' @param issue The issue to be discussed. Example: "I want to solve linear programming and create a timetable."
+#' @param issue The issue to be discussed. Example: "I want to perform differential gene expression analysis from RNA-seq data and interpret enriched pathways."
 #' @param Domain The domain of the discussion, default is "bioinformatics".
 #' @param Model The LLM model to be used, default is "gpt-4o-mini".
 #' @param api_key The API key for OpenAI, default is retrieved from the system environment variable "OPENAI_API_KEY".
@@ -29,7 +29,6 @@
 #' @param R_expert_setting Logical, whether R expert settings are enabled, default is TRUE.
 #' @param verbose Logical, whether to print verbose output, default is TRUE.
 #' @param sayENorJA Logical, whether to speak in English or Japanese, default is TRUE. This feature is available on macOS systems only.
-#' @param rep_x Numeric, a number of repeat for the conversations.
 #' @param rep_x Numeric, a number of repeats for the conversations, default is 3.
 #' @importFrom future plan future multisession resolved
 #' @importFrom igraph graph add_vertices layout_nicely add_edges layout_with_fr
@@ -39,13 +38,15 @@
 #' @author Satoshi Kume
 #' @examples
 #' \dontrun{
-#' issue <-  "I want to solve linear programming and create a timetable."
+#' issue <-  "I want to perform differential gene expression analysis from
+#'            RNA-seq data and interpret enriched pathways."
 #'
 #' #Run Discussion with the domain of bioinformatics
 #' discussion_flow_v2(issue)
 #' }
 
-#issue = "I want to solve linear programming and create a timetable.";Domain = "bioinformatics";Model = "gpt-4o-mini";api_key = Sys.getenv("OPENAI_API_KEY");language = "English";Summary_nch = 50; verbose = TRUE; sayENorJA = FALSE; Sentence_difficulty = 2; R_expert_setting = TRUE; rep_x = 3
+#issue = "I want to perform differential gene expression analysis from RNA-seq data
+#         and interpret enriched pathways.";Domain = "bioinformatics";Model = "gpt-4o-mini";api_key = Sys.getenv("OPENAI_API_KEY");language = "English";Summary_nch = 50; verbose = TRUE; sayENorJA = FALSE; Sentence_difficulty = 2; R_expert_setting = TRUE; rep_x = 3
 #discussion_flow_v2(issue, sayENorJA = FALSE)
 
 discussion_flow_v2 <- function(issue,
@@ -64,11 +65,55 @@ discussion_flow_v2 <- function(issue,
 future::plan(future::multisession())
 DEEPL <- any(names(Sys.getenv()) == "DeepL_API_KEY")
 
+normalize_text <- function(x) {
+  if (is.null(x)) {
+    return("")
+  }
+
+  if (is.data.frame(x)) {
+    if ("content" %in% names(x)) {
+      return(paste(as.character(x$content), collapse = "\n"))
+    }
+    return(paste(as.character(unlist(x, use.names = FALSE)), collapse = "\n"))
+  }
+
+  if (is.list(x)) {
+    if (!is.null(x$text)) {
+      return(paste(as.character(x$text), collapse = "\n"))
+    }
+    if (!is.null(x$content)) {
+      return(paste(as.character(x$content), collapse = "\n"))
+    }
+    return(paste(as.character(unlist(x, use.names = FALSE)), collapse = "\n"))
+  }
+
+  paste(as.character(x), collapse = "\n")
+}
+
+say_text <- function(text, voice, rate = 200) {
+  if (!deepRstudio::is_mac()) {
+    return(invisible(NULL))
+  }
+
+  base::system2(
+    "say",
+    args = c(
+      "-r", as.character(rate),
+      "-v", base::shQuote(normalize_text(voice)),
+      base::shQuote(normalize_text(text))
+    ),
+    stdout = FALSE,
+    stderr = FALSE
+  )
+}
+
 #Create graph nodes
 set.seed(123)
 g <- igraph::make_graph(c(), directed = TRUE)
 g <- igraph::add_vertices(g, 4, name = c("H", "A", "B", "C"))
-layout <- igraph::layout_nicely(g)*10
+
+layout <- igraph::layout_in_circle(g)
+#layout <- igraph::layout_nicely(g)*10
 #layout <- igraph::layout_with_fr(g, area = vcount(g)^3)
 
 shapes <- ifelse(igraph::V(g)$name == "H", "square", "rectangle")
@@ -88,7 +133,7 @@ edges_to_add <- c("H", "A",
 
 # Decide voices on MacOS
 if(deepRstudio::is_mac()){
-  voices <- system("say -v \\?", intern = TRUE)
+  voices <- system2("say", args = c("-v", "?"), stdout = TRUE)
   a <- strsplit(voices, split="       |#")
   b <- data.frame(matrix(NA, nrow = length(a), ncol = 3))
   for(n in seq_len(length(a))){
@@ -154,13 +199,17 @@ LLB_A <- list(list('role' = 'system', 'content' = paste(Setting_A_R)),
 
 #Task 1
 fut1 <- future::future({
-res1 <- chat4R_history(history = LLB_A,
+res1 <- normalize_text(chat4R_history(history = LLB_A,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'assistant', 'content' = res1)
+
+# Initialize res1_ja
+res1_ja <- res1  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res1_ja <- deepRstudio::deepel(input = res1, target_lang = "JA")$text
+  res1_ja <- normalize_text(deepRstudio::deepel(input = res1, target_lang = "JA")$text)
 }}
 
 list(res1, LLB_A, res1_ja)
@@ -187,17 +236,17 @@ if(sayENorJA){
 
 if(!sayENorJA){
   if(DEEPL){
-  issue_ja <- deepRstudio::deepel(input = issue, target_lang = "JA")$text
+  issue_ja <- normalize_text(deepRstudio::deepel(input = issue, target_lang = "JA")$text)
 }}
 
 #Task 2: Human say
 rate <- 200
 fut <- future::future({
 if(sayENorJA){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", issue, "'"))
+  say_text(text = issue, voice = H_AI_voices[1], rate = rate)
 }else{
   if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", issue_ja, "'"))
+  say_text(text = issue_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Task 2':
@@ -234,13 +283,17 @@ LLB_B <- list(list('role' = 'system', 'content' = paste(Setting_B_R)),
 
 #Task 3
 fut3 <- future::future({
-res2 <- chat4R_history(history = LLB_B,
+res2 <- normalize_text(chat4R_history(history = LLB_B,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_B[[length(LLB_B) + 1]] <- list('role' = 'assistant', 'content' = res2)
+
+# Initialize res2_ja
+res2_ja <- res2  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res2_ja <- deepRstudio::deepel(input = res2, target_lang = "JA")$text
+  res2_ja <- normalize_text(deepRstudio::deepel(input = res2, target_lang = "JA")$text)
 }}
 
 list(res2, LLB_B, res2_ja)
@@ -261,10 +314,10 @@ plot(g1, edge.arrow.size = 0.75,
 #LLB A say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res1, "'"))
+say_text(text = res1, voice = H_AI_voices[2], rate = rate)
 }else{
   if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res1_ja, "'"))
+  say_text(text = res1_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Printing
@@ -294,13 +347,17 @@ prompt_A2 <- paste0(sprintf(prompt_A, language, Summary_nch), res2, sep=" ")
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'user', 'content' = prompt_A2)
 
 fut4 <- future::future({
-res3 <- chat4R_history(history = LLB_A,
+res3 <- normalize_text(chat4R_history(history = LLB_A,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'assistant', 'content' = res3)
+
+# Initialize res3_ja
+res3_ja <- res3  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res3_ja <- deepRstudio::deepel(input = res3, target_lang = "JA")$text
+  res3_ja <- normalize_text(deepRstudio::deepel(input = res3, target_lang = "JA")$text)
 }}
 
 list(res3, LLB_A, res3_ja)
@@ -320,10 +377,10 @@ plot(g1, edge.arrow.size = 0.75,
 #LLB B say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res2, "'"))
+say_text(text = res2, voice = H_AI_voices[2], rate = rate)
 }else{
   if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res2_ja, "'"))
+  say_text(text = res2_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Task 4' Printing
@@ -355,13 +412,17 @@ prompt_B2 <- paste0(sprintf(prompt_B, language, Summary_nch), res3, sep=" ")
 LLB_B[[length(LLB_B) + 1]] <- list('role' = 'user', 'content' = prompt_B2)
 
 fut5 <- future::future({
-res4 <- chat4R_history(history = LLB_B,
+res4 <- normalize_text(chat4R_history(history = LLB_B,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_B[[length(LLB_B) + 1]] <- list('role' = 'assistant', 'content' = res4)
+
+# Initialize res4_ja
+res4_ja <- res4  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res4_ja <- deepRstudio::deepel(input = res4, target_lang = "JA")$text
+  res4_ja <- normalize_text(deepRstudio::deepel(input = res4, target_lang = "JA")$text)
 }}
 
 list(res4, LLB_B, res4_ja)
@@ -381,10 +442,10 @@ plot(g1, edge.arrow.size = 0.75,
 #LLB A say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res3, "'"))
+say_text(text = res3, voice = H_AI_voices[2], rate = rate)
 }else{
   if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res3_ja, "'"))
+  say_text(text = res3_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Task 5' Printing
@@ -427,14 +488,17 @@ prompt_A3 <- paste0(sprintf(prompt_A3, language, Summary_nch), res4, sep=" ")
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'user', 'content' = prompt_A3)
 
 fut6 <- future::future({
-res5 <- chat4R_history(history = LLB_A,
+res5 <- normalize_text(chat4R_history(history = LLB_A,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'assistant', 'content' = res5)
 
+# Initialize res5_ja
+res5_ja <- res5  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res5_ja <- deepRstudio::deepel(input = res5, target_lang = "JA")$text
+  res5_ja <- normalize_text(deepRstudio::deepel(input = res5, target_lang = "JA")$text)
   }}
 
 list(res5, LLB_A, res5_ja)
@@ -444,10 +508,10 @@ list(res5, LLB_A, res5_ja)
 #LLB B say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res4, "'"))
+say_text(text = res4, voice = H_AI_voices[2], rate = rate)
 }else{
 if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res4_ja, "'"))
+  say_text(text = res4_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Printing
@@ -486,12 +550,16 @@ LLB_C <- list(list('role' = 'system', 'content' = paste(Setting_C_R)),
                   list('role' = 'user', 'content' = prompt_C1))
 
 fut7 <- future::future({
-res6 <- chat4R_history(history = LLB_C,
+res6 <- normalize_text(chat4R_history(history = LLB_C,
                api_key = api_key, Model = Model, temperature = 1)
+)
+
+# Initialize res6_ja
+res6_ja <- res6  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res6_ja <- deepRstudio::deepel(input = res6, target_lang = "JA")$text
+  res6_ja <- normalize_text(deepRstudio::deepel(input = res6, target_lang = "JA")$text)
 }}
 
 list(res6, res6_ja)
@@ -511,10 +579,10 @@ plot(g1, edge.arrow.size = 0.75,
 #LLB A say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res5, "'"))
+say_text(text = res5, voice = H_AI_voices[2], rate = rate)
 }else{
   if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res5_ja, "'"))
+  say_text(text = res5_ja, voice = H_AI_voices[1], rate = rate)
 }
 }
 })
@@ -555,10 +623,10 @@ plot(g1, edge.arrow.size = 0.75,
 #LLB C say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[4], "'", res6, "'"))
+say_text(text = res6, voice = H_AI_voices[2], rate = rate)
 }else{
 if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res6_ja, "'"))
+  say_text(text = res6_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Printing
@@ -585,7 +653,7 @@ Sys.sleep(0.5)
 Ans <- utils::askYesNo("Do you have an intervention for this conversation?")
 if(Ans){
   intervention <- readline(prompt = paste("Please enter your intervention: "))
-  Human_intervention_en <- deepRstudio::deepel(input = intervention, target_lang = "EN")$text
+  Human_intervention_en <- normalize_text(deepRstudio::deepel(input = intervention, target_lang = "EN")$text)
   res6 <- paste("Human's comment (Make sure you follow these rules from human): ",
                  Human_intervention_en,
                  " Reviewer's comment: ", res6)
@@ -598,13 +666,17 @@ prompt_A4 <- paste0(sprintf(prompt_A, language, Summary_nch), res6, sep=" ")
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'user', 'content' = prompt_A4)
 
 fut8 <- future::future({
-res7 <- chat4R_history(history = LLB_A,
+res7 <- normalize_text(chat4R_history(history = LLB_A,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'assistant', 'content' = res7)
+
+# Initialize res7_ja
+res7_ja <- res7  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res7_ja <- deepRstudio::deepel(input = res7, target_lang = "JA")$text
+  res7_ja <- normalize_text(deepRstudio::deepel(input = res7, target_lang = "JA")$text)
 }}
 
 list(res7, LLB_A, res7_ja)
@@ -629,9 +701,12 @@ res7_ja <- future::value(fut8)[[3]]
 if(Ans){
   res7 <- paste(res7, Human_intervention_en)
 
+  # Update res7_ja when res7 is modified
+  res7_ja <- res7  # Default to original text
+
   if(!sayENorJA){
   if(DEEPL){
-  res7_ja <- deepRstudio::deepel(input = res7, target_lang = "JA")$text
+  res7_ja <- normalize_text(deepRstudio::deepel(input = res7, target_lang = "JA")$text)
   }}
 }
 #######################################################################
@@ -643,13 +718,17 @@ prompt_B3 <- paste0(sprintf(prompt_B, language, Summary_nch), res7, sep=" ")
 LLB_B[[length(LLB_B) + 1]] <- list('role' = 'user', 'content' = prompt_B3)
 
 fut9 <- future::future({
-res8 <- chat4R_history(history = LLB_B,
+res8 <- normalize_text(chat4R_history(history = LLB_B,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_B[[length(LLB_B) + 1]] <- list('role' = 'assistant', 'content' = res8)
+
+# Initialize res8_ja
+res8_ja <- res8  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res8_ja <- deepRstudio::deepel(input = res8, target_lang = "JA")$text
+  res8_ja <- normalize_text(deepRstudio::deepel(input = res8, target_lang = "JA")$text)
 }}
 
 list(res8, LLB_B, res8_ja)
@@ -669,10 +748,10 @@ plot(g1, edge.arrow.size = 0.75,
 #LLB A say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res7, "'"))
+say_text(text = res7, voice = H_AI_voices[2], rate = rate)
 }else{
 if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res7_ja, "'"))
+  say_text(text = res7_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Printing
@@ -711,10 +790,10 @@ plot(g1, edge.arrow.size = 0.75,
 #LLB B say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res8, "'"))
+say_text(text = res8, voice = H_AI_voices[2], rate = rate)
 }else{
 if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res8_ja, "'"))
+  say_text(text = res8_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Printing
@@ -752,23 +831,28 @@ if(x%%2 != 0){
 Ans <- utils::askYesNo("Do you have an intervention for this conversation?")
 if(Ans){
   intervention <- readline(prompt = paste("Please enter your intervention: "))
-  Human_intervention_en <- deepRstudio::deepel(input = intervention, target_lang = "EN")$text
+  Human_intervention_en <- normalize_text(deepRstudio::deepel(input = intervention, target_lang = "EN")$text)
   res <- paste("Make sure you follow these rules: ",
                  Human_intervention_en, res)
 }}
+
 
 # Substituting arguments into the prompt
 prompt_AR <- paste0(sprintf(prompt_A, language, Summary_nch), res, sep=" ")
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'user', 'content' = prompt_AR)
 
 futR <- future::future({
-res <- chat4R_history(history = LLB_A,
+res <- normalize_text(chat4R_history(history = LLB_A,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'assistant', 'content' = res)
+
+# Initialize res_ja
+res_ja <- res  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res_ja <- deepRstudio::deepel(input = res, target_lang = "JA")$text
+  res_ja <- normalize_text(deepRstudio::deepel(input = res, target_lang = "JA")$text)
 }}
 
 list(res, LLB_A, res_ja)
@@ -799,10 +883,10 @@ res_ja <- future::value(futR)[[3]]
 #LLB A say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[3], "'", res, "'"))
+say_text(text = res, voice = H_AI_voices[2], rate = rate)
 }else{
 if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res_ja, "'"))
+  say_text(text = res_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Printing
@@ -831,13 +915,17 @@ prompt_BR <- paste0(sprintf(prompt_B, language, Summary_nch), res, sep=" ")
 LLB_B[[length(LLB_B) + 1]] <- list('role' = 'user', 'content' = prompt_BR)
 
 futR <- future::future({
-res <- chat4R_history(history = LLB_B,
+res <- normalize_text(chat4R_history(history = LLB_B,
                api_key = api_key, Model = Model, temperature = 1)
+)
 LLB_B[[length(LLB_B) + 1]] <- list('role' = 'assistant', 'content' = res)
+
+# Initialize res_ja
+res_ja <- res  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res_ja <- deepRstudio::deepel(input = res, target_lang = "JA")$text
+  res_ja <- normalize_text(deepRstudio::deepel(input = res, target_lang = "JA")$text)
 }}
 
 list(res, LLB_B, res_ja)
@@ -869,10 +957,10 @@ res_ja <- future::value(futR)[[3]]
 #LLB B say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res, "'"))
+say_text(text = res, voice = H_AI_voices[2], rate = rate)
 }else{
 if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res_ja, "'"))
+  say_text(text = res_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Printing
@@ -911,12 +999,16 @@ prompt_A3 <- paste0(sprintf(prompt_A3, language, Summary_nch), res8, sep=" ")
 LLB_A[[length(LLB_A) + 1]] <- list('role' = 'user', 'content' = prompt_A3)
 
 fut10 <- future::future({
-res9 <- chat4R_history(history = LLB_A,
+res9 <- normalize_text(chat4R_history(history = LLB_A,
                api_key = api_key, Model = Model, temperature = 1)
+)
+
+# Initialize res9_ja
+res9_ja <- res9  # Default to original text
 
 if(!sayENorJA){
   if(DEEPL){
-  res9_ja <- deepRstudio::deepel(input = res9, target_lang = "JA")$text
+  res9_ja <- normalize_text(deepRstudio::deepel(input = res9, target_lang = "JA")$text)
   }}
 
 list(res9, res9_ja)
@@ -951,10 +1043,10 @@ message(crayon::cyan("LLB A report to Human"))
 #LLB A say
 fut <- future::future({
 if(sayENorJA){
-system(paste("say -r", rate, "-v", H_AI_voices[2], "'", res9, "'"))
+say_text(text = res9, voice = H_AI_voices[2], rate = rate)
 }else{
 if(DEEPL){
-  system(paste("say -r", rate, "-v", H_AI_voices[1], "'", res9_ja, "'"))
+  say_text(text = res9_ja, voice = H_AI_voices[1], rate = rate)
 }}})
 
 #Printing
